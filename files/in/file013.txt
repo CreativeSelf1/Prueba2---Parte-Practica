@@ -1,0 +1,15 @@
+Rust es un lenguaje de programación de sistemas, por lo que se usa para escribir sistemas (como sistemas operativos). Pero también se puede usar 
+para aplicaciones en las que el rendimiento y la confiabilidad son importantes. La sintaxis del lenguaje Rust es comparable a la de C++, proporciona un rendimiento equivalente al de C++ moderno y, para muchos desarrolladores con experiencia, Rust acierta en cada nota en lo que respecta a la compilación y el modelo en tiempo de ejecución, el sistema de tipos y la finalización determinista.
+
+Además, Rust está diseñado con la promesa de la seguridad garantizada de la memoria, sin necesidad de recolección de elementos 
+no utilizados.
+
+¿Por qué hemos elegido Rust para la proyección de lenguajes más reciente para Windows? Un factor es que la encuesta anual de
+ desarrolladores de Stack Overflow muestra que Rust es, por lejos, el lenguaje de programación más querido hasta, año tras año. Aunque es posible que le parezca que el lenguaje tiene una curva de aprendizaje pronunciada, una vez que alcanza la cima, es difícil no enamorarse.
+
+Además, Microsoft es miembro fundador de Rust Foundation. La fundación es una organización independiente sin ánimo de lucro, 
+con un enfoque nuevo para sostener y agrandar un ecosistema de código abierto de gran tamaño y participativo.
+Componentes del ecosistema o el conjunto de herramientas de desarrollo de Rust
+
+En esta sección, se presentan algunas herramientas y términos de Rust. Puede volver aquí para refrescar la memoria sobre cualquiera 
+de las descripciones.

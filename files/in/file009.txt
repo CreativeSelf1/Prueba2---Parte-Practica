@@ -1,0 +1,8 @@
+Ubuntu es una distribución Linux basada en Debian GNU/Linux, que incluye principalmente 
+software libre y de código abierto. Puede utilizarse en ordenadores y servidores. Está orientado al usuario promedio, 
+con un fuerte enfoque en la facilidad de uso y en mejorar la experiencia del usuario. 
+Ubuntu usa primariamente software libre, haciendo excepciones en el caso de varios controladores privativos 
+(además de firmware y software). Antes de cada lanzamiento, se lleva a cabo una importación de paquetes, desde Debian,
+aplicando las modificaciones específicas de Ubuntu. Un mes antes del lanzamiento, comienza un proceso de congelación de 
+importaciones, 
+ayudando a que los desarrolladores puedan asegurar que el software sea suficientemente estable. 
