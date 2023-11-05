@@ -75,7 +75,7 @@ void interfazBuscador(int clientSocket){
 int main(){
     dotenv::init();
     string serverIP = "127.0.0.1"; // Dirección IP del servidor
-    int serverPort = 3000;       // Puerto del servidor
+    int serverPort = 3001;       // Puerto del servidor
     int clientSocket = connectToServer(serverIP, serverPort);
     interfazBuscador(clientSocket);
     

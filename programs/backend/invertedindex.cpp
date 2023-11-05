@@ -44,7 +44,7 @@ int main(){
     // Configurar la dirección del servidor
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
-    serverAddr.sin_port = htons(3000); // Puerto del servidor
+    serverAddr.sin_port = htons(3002); // Puerto del servidor
     serverAddr.sin_addr.s_addr = INADDR_ANY;
 
     // Enlazar el socket a la dirección del servidor
