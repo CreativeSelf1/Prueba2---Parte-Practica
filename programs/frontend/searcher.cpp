@@ -8,8 +8,24 @@
 
 #include "include/laserpants/dotenv/dotenv.h"
 
-
 using namespace std;
+
+void sendMessage(int clientSocket, const string& message) {
+    string mensaje = "{"
+                      "origen:\"./searcher\","
+                      "destino:\"./memcache\","
+                      "contexto:{topk:4, txtToSerarch:\"" + message + "\"}"
+                      "}";
+
+    // Convertir la cadena a un array de caracteres C para enviarlo al servidor
+    const char *mensajeCStr = mensaje.c_str();
+    cout << mensajeCStr[0]<<endl;
+    
+    // Enviar el mensaje al servidor
+    if (send(clientSocket, mensajeCStr, strlen(mensajeCStr), 0) == -1) {
+        perror("Error al enviar el mensaje al servidor");
+    }
+}
 
 // Función para conectar al servidor
 int connectToServer(const string& serverIP, int serverPort) {
@@ -18,7 +34,6 @@ int connectToServer(const string& serverIP, int serverPort) {
         perror("Error al crear el socket del cliente");
         exit(EXIT_FAILURE);
     }
-
     struct sockaddr_in serverAddr;
     memset(&serverAddr, 0, sizeof(serverAddr));
     serverAddr.sin_family = AF_INET;
@@ -30,9 +45,7 @@ int connectToServer(const string& serverIP, int serverPort) {
         close(clientSocket);
         exit(EXIT_FAILURE);
     }
-
     cout << "Conectado al servidor." << endl;
-
     return clientSocket;
 }
 
@@ -50,11 +63,9 @@ void interfazBuscador(int clientSocket){
     cout << "\nEscriba texto a buscar: ";
     getline(cin, textoBuscar);
 
-
-    //funciones para envio de mensaje a al servidor memcache
-
-
-
+    //envio mensaje
+    sendMessage(clientSocket, textoBuscar);
+        
     //salida
     cout << "\n   DESEA SALIR (S/N): ";
     cin >> salida;

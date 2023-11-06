@@ -10,6 +10,11 @@
 
 using namespace std;
 
+void procesarMensaje(int clientSocket, const char *mensaje) {
+    cout << "Datos recibidos del cliente: " << mensaje << endl;
+
+}
+
 int main(){
     dotenv::init();
     //Definición de variables
@@ -31,8 +36,7 @@ int main(){
 
     //cargar en memoria
     unordered_map<string, vector<pair<string, int>>> UmapIDX = mapIDX(idx);
-    cout << UmapIDX.size()<<endl;
-
+    
 
     //crear socket del servidor
     serverSocket = socket(AF_INET, SOCK_STREAM, 0);
@@ -72,8 +76,23 @@ int main(){
         }
 
         cout << "Cliente conectado" << endl;
+
+        char buffer[1024];
+        int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+        if (bytesRead == -1) {
+            perror("Error al recibir datos del cliente");
+        } else if (bytesRead == 0) {
+            cout << "Cliente desconectado" << endl;
+            close(clientSocket);
+            continue; // Continuar esperando conexiones
+        } else {
+            buffer[bytesRead] = '\0';
+
+            // Llamar a la función para procesar el mensaje
+            procesarMensaje(clientSocket, buffer);
     }
 
    
     return 0;
-}   
+    }   
+}

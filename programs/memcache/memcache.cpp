@@ -4,17 +4,69 @@
 #include <cstring>
 #include <unistd.h>
 #include <cstdlib>
+#include <map>
 #include "include/laserpants/dotenv/dotenv.h"
 
 using namespace std;
 
+struct SearchResult
+{
+    string archivo;
+    int repeticion;
+};
+
+
+void procesarMensaje(int clientSocket, const char *mensaje, int clientSocketToOtherServer, map<string, vector<SearchResult>>& memoriaCache) {
+    cout << "Datos recibidos del cliente: " << mensaje << endl;
+    string mensajeStr(mensaje);
+
+    size_t origenInicio = mensajeStr.find("origen:\"") + 8;
+    size_t origenFin = mensajeStr.find("\"", origenInicio);
+    string origen = mensajeStr.substr(origenInicio, origenFin - origenInicio);
+
+    size_t destinoInicio = mensajeStr.find("destino:\"") + 9;
+    size_t destinoFin = mensajeStr.find("\"", destinoInicio);
+    string destino = mensajeStr.substr(destinoInicio, destinoFin - destinoInicio);
+
+    size_t textoInicio = mensajeStr.find("txtToSerarch:\"") + 14;
+    size_t textoFin = mensajeStr.find("\"", textoInicio);
+    string textoABuscar = mensajeStr.substr(textoInicio, textoFin - textoInicio);
+
+    cout << origen << " " << destino << " " << textoABuscar << endl;
+
+    auto it = memoriaCache.find(textoABuscar);
+    if (it != memoriaCache.end()) {
+        // Enviar la respuesta al frontend
+        // enviarRespuestaAlFrontend(clientSocket, it->second, true);
+        cout << "encontrado" << endl;
+    } else {
+        cout << "no encontrado" << endl;
+    }
+}
+
+bool VerificarCondicion(const char *mensaje){
+    return true;
+}
+
+void enviarBackend(int backend, const char *mensaje){
+    send(backend, mensaje, strlen(mensaje), 0);
+}
+
 int main(){
     dotenv::init();
     //deficion de variables
-     int serverSocket, clientSocket;
+    int serverSocket, clientSocket;
+    map<string, vector<SearchResult>> memoriaCache;
+
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t clientAddrLen = sizeof(clientAddr);
 
+    SearchResult resultadoEjemplo;
+    resultadoEjemplo.archivo = "ejemplo.txt";
+    resultadoEjemplo.repeticion = 3;     
+    memoriaCache["hola"].push_back(resultadoEjemplo);
+    
+    // Lógica del server 
     //crear socket del servidor
     serverSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (serverSocket == -1) {
@@ -41,10 +93,9 @@ int main(){
         close(serverSocket);
         exit(EXIT_FAILURE);
     }
-
     cout << "Esperando conexiones entrantes..." << endl;
 
-     // Lógica del cliente (conectarse al otro servidor)
+     // Lógica del cliente (conectarse al otro servidor bakend)
     const char *otherServerAddress = "127.0.0.1";
     int otherServerPort = 3002;
 
@@ -71,7 +122,6 @@ int main(){
 
     cout << "Conexión establecida con el otro servidor" << endl;
 
-
     while (true) {
         // Aceptar la conexión entrante
         clientSocket = accept(serverSocket, (struct sockaddr *)&clientAddr, &clientAddrLen);
@@ -81,7 +131,29 @@ int main(){
         }
 
         cout << "Cliente conectado" << endl;
-    }
 
+        // Leer datos del cliente
+        char buffer[1024];
+        int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
+        if (bytesRead == -1) {
+            perror("Error al recibir datos del cliente");
+        } else if (bytesRead == 0) {
+            cout << "Cliente desconectado" << endl;
+            close(clientSocket);
+            continue; // Continuar esperando conexiones
+        } else {
+            buffer[bytesRead] = '\0';
+
+            // Llamar a la función para procesar el mensaje
+            procesarMensaje(clientSocket, buffer, clientSocketToOtherServer, memoriaCache);
+            
+            // if(VerificarCondicion(buffer)){
+            //     const char *mensaje = "mensaje para el backend";
+            //     enviarBackend(clientSocketToOtherServer, mensaje);
+            // }
+        
+        }
+
+    }
     return 0;
 }   
