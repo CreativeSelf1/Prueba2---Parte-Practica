@@ -4,7 +4,7 @@ BINS= invertedIndex searcher memcache
 all: clean invertedIndex searcher memcache
 
 invertedIndex:
-	$(CC) $(CFLAGS) -o programs/backend/invertedindex programs/backend/invertedindex.cpp programs/backend/include/loads.cpp programs/backend/include/countAllWords.cpp
+	$(CC) $(CFLAGS) -o programs/backend/invertedindex programs/backend/invertedindex.cpp programs/backend/include/loads.cpp programs/backend/include/countAllWords.cpp  programs/backend/include/buscador.cpp 
 
 searcher:
 	$(CC) $(CFLAGS) -o programs/frontend/searcher programs/frontend/searcher.cpp

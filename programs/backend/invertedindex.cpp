@@ -1,18 +1,43 @@
 #include <iostream>
 #include "include/laserpants/dotenv/dotenv.h"
 #include "include/loads.h"
+#include "include/buscador.h"
 #include <unordered_map>
 #include <arpa/inet.h>
 #include <sys/socket.h>
 #include <cstring>
 #include <unistd.h>
 #include <cstdlib>
+#include "include/json.hpp"
 
 using namespace std;
+using json = nlohmann::json;
 
-void procesarMensaje(int clientSocket, const char *mensaje) {
+void sendJsonToMemcache(int clientSocket, const json& resultadoJson) {
+    string serializedJson = resultadoJson.dump();
+    // Enviar la cadena al servidor de Memcache
+    ssize_t bytesSent = send(clientSocket, serializedJson.c_str(), serializedJson.length(), 0);
+
+    if (bytesSent == -1) {
+        perror("Error al enviar datos al servidor de Memcache");
+        close(clientSocket);
+        // Puedes agregar un return aquí para salir de la función o manejar el error según tu lógica.
+    }
+}
+
+void procesarMensaje(int clientSocket, const char *mensaje, unordered_map<string, vector<pair<string, int>>>& UmapIDX) {
+    int topk = atoi(getenv("TOPK"));
     cout << "Datos recibidos del cliente: " << mensaje << endl;
+    string mensajeStr(mensaje);
+    json j = json::parse(mensajeStr);
+    json contexto = j["contexto"];  // Obtener "contexto" como un objeto JSON
+    string textoABuscar = contexto["txtToSearch"];  // Corregir el nombre de la clave
 
+    vector<string> palabrasEncontradas = buscarPalabras(textoABuscar, UmapIDX);
+    //CantidadPalabrasArchivo(UmapIDX,palabrasEncontradas, 5);
+    json resultadoJson = obtenerJsonCantidadPalabrasArchivo(UmapIDX, palabrasEncontradas, topk);
+    // cout << resultadoJson.dump(2) << endl;
+    sendJsonToMemcache(clientSocket, resultadoJson);
 }
 
 int main(){
@@ -32,7 +57,6 @@ int main(){
 
     //generar inverted_index_file
     generateFILEIDX(extention,files_in, files_out, numThreads, idx);
-
 
     //cargar en memoria
     unordered_map<string, vector<pair<string, int>>> UmapIDX = mapIDX(idx);
@@ -89,7 +113,7 @@ int main(){
             buffer[bytesRead] = '\0';
 
             // Llamar a la función para procesar el mensaje
-            procesarMensaje(clientSocket, buffer);
+            procesarMensaje(clientSocket, buffer, UmapIDX);
     }
 
    

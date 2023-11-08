@@ -6,8 +6,10 @@
 #include <cstdlib>
 #include <map>
 #include "include/laserpants/dotenv/dotenv.h"
+#include "include/json.hpp"
 
 using namespace std;
+using json = nlohmann::json;
 
 struct SearchResult
 {
@@ -15,56 +17,120 @@ struct SearchResult
     int repeticion;
 };
 
+map<string, vector<SearchResult>> memoriaCache;
 
+void agregarResultadosAlMapa(const json& resultadosJson, string textoABuscar) {
+    vector<SearchResult> nuevosResultados;
+    const json& resultados = resultadosJson["contexto"]["resultados"];
+    for (const auto& resultado : resultados) {
+        SearchResult nuevoResultado;
+        nuevoResultado.archivo = resultado["archivo"];
+        nuevoResultado.repeticion = resultado["repeticion"];
+        nuevosResultados.push_back(nuevoResultado);
+    }
+    memoriaCache[textoABuscar] = nuevosResultados;
+}
+
+void sendMemcacheToFrontend(int clientSocket, const vector<SearchResult>& resultados, bool isFound) {
+    json jsonResponse;
+    jsonResponse["origen"] = string(getenv("HOST"));
+    jsonResponse["destino"] = string(getenv("FRONT"));
+    jsonResponse["contexto"]["tiempo"] = "100ns";
+    jsonResponse["contexto"]["ori"] = "CACHE";
+    jsonResponse["contexto"]["isFound"] = isFound;
+    
+    json resultadosJSON = json::array();
+    for (const auto& resultado : resultados) {
+        json resultadoJSON;
+        resultadoJSON["archivo"] = resultado.archivo;
+        resultadoJSON["repeticion"] = resultado.repeticion;
+        resultadosJSON.push_back(resultadoJSON);
+    }
+    jsonResponse["contexto"]["resultados"] = resultadosJSON;
+    string serializedResponse = jsonResponse.dump();
+    send(clientSocket, serializedResponse.c_str(), serializedResponse.length(), 0);
+}
+
+void SendBackendToFrontend(int frontend, const string& mensaje) {
+    send(frontend, mensaje.c_str(), mensaje.length(), 0);
+}
+
+void sendBackend(int backend, const json& message){
+    string serializedMessage = message.dump();
+    send(backend, serializedMessage.c_str(),serializedMessage.length(), 0);
+}
+
+string receiveMessageToBackend(int backendSocket) {
+    char buffer[1024];
+    memset(buffer, 0, sizeof(buffer));
+
+    int bytesRead = recv(backendSocket, buffer, sizeof(buffer), 0);
+
+    if (bytesRead == -1) {
+        perror("Error al recibir datos del backend");
+        return "";
+    } else if (bytesRead == 0) {
+        cout << "El backend ha cerrado la conexión" << endl;
+        return "";
+    } else {
+        buffer[bytesRead] = '\0';
+        return string(buffer);
+    }
+}
 void procesarMensaje(int clientSocket, const char *mensaje, int clientSocketToOtherServer, map<string, vector<SearchResult>>& memoriaCache) {
     cout << "Datos recibidos del cliente: " << mensaje << endl;
     string mensajeStr(mensaje);
+    try {
+        json j = json::parse(mensajeStr);
+        json contexto = j["contexto"];  // Obtener "contexto" como un objeto JSON
+        string textoABuscar = contexto["txtToSearch"];  // Corregir el nombre de la clave
 
-    size_t origenInicio = mensajeStr.find("origen:\"") + 8;
-    size_t origenFin = mensajeStr.find("\"", origenInicio);
-    string origen = mensajeStr.substr(origenInicio, origenFin - origenInicio);
 
-    size_t destinoInicio = mensajeStr.find("destino:\"") + 9;
-    size_t destinoFin = mensajeStr.find("\"", destinoInicio);
-    string destino = mensajeStr.substr(destinoInicio, destinoFin - destinoInicio);
+        auto it = memoriaCache.find(textoABuscar);
+        if (it != memoriaCache.end()) {
+            vector<SearchResult>& resultados = it->second;
+            sendMemcacheToFrontend(clientSocket, resultados, true);
+        } else {
+            cout << "Palabra no encontrada en memoria cache, enviando mensaje al backend" << endl;
+            json mensajeBackend = {
+                {"origen", string(getenv("HOST"))},
+                {"destino", string(getenv("BACK"))},
+                {"contexto", {{"txtToSearch", textoABuscar}
+                }}
+            };
 
-    size_t textoInicio = mensajeStr.find("txtToSerarch:\"") + 14;
-    size_t textoFin = mensajeStr.find("\"", textoInicio);
-    string textoABuscar = mensajeStr.substr(textoInicio, textoFin - textoInicio);
+            sendBackend(clientSocketToOtherServer, mensajeBackend);
+            string respuestaBackend = receiveMessageToBackend(clientSocketToOtherServer);
+            //agrega a memoria cache
+            json resultadosJson = json::parse(respuestaBackend);
+            agregarResultadosAlMapa(resultadosJson, textoABuscar);
 
-    cout << origen << " " << destino << " " << textoABuscar << endl;
-
-    auto it = memoriaCache.find(textoABuscar);
-    if (it != memoriaCache.end()) {
-        // Enviar la respuesta al frontend
-        // enviarRespuestaAlFrontend(clientSocket, it->second, true);
-        cout << "encontrado" << endl;
-    } else {
-        cout << "no encontrado" << endl;
+            // Después de recibir y procesar los resultados del memcache
+            cout <<"respuesta del backend:"<<respuestaBackend<<endl;
+            SendBackendToFrontend(clientSocket, respuestaBackend);
+        }
+    } catch (const std::exception& e) {
+        std::cerr << "Error al analizar el mensaje JSON: " << e.what() << std::endl;
     }
 }
 
-bool VerificarCondicion(const char *mensaje){
-    return true;
-}
 
-void enviarBackend(int backend, const char *mensaje){
-    send(backend, mensaje, strlen(mensaje), 0);
-}
 
 int main(){
     dotenv::init();
     //deficion de variables
     int serverSocket, clientSocket;
-    map<string, vector<SearchResult>> memoriaCache;
-
     struct sockaddr_in serverAddr, clientAddr;
     socklen_t clientAddrLen = sizeof(clientAddr);
 
     SearchResult resultadoEjemplo;
+    SearchResult nuevoResultado;
     resultadoEjemplo.archivo = "ejemplo.txt";
     resultadoEjemplo.repeticion = 3;     
     memoriaCache["hola"].push_back(resultadoEjemplo);
+    nuevoResultado.archivo = "otro_ejemplo.txt";
+    nuevoResultado.repeticion = 5;
+    memoriaCache["hola"].push_back(nuevoResultado);
     
     // Lógica del server 
     //crear socket del servidor
@@ -143,17 +209,9 @@ int main(){
             continue; // Continuar esperando conexiones
         } else {
             buffer[bytesRead] = '\0';
-
             // Llamar a la función para procesar el mensaje
             procesarMensaje(clientSocket, buffer, clientSocketToOtherServer, memoriaCache);
-            
-            // if(VerificarCondicion(buffer)){
-            //     const char *mensaje = "mensaje para el backend";
-            //     enviarBackend(clientSocketToOtherServer, mensaje);
-            // }
-        
         }
-
     }
     return 0;
 }   

@@ -7,25 +7,36 @@
 #include <sys/socket.h>
 
 #include "include/laserpants/dotenv/dotenv.h"
+#include "include/json.hpp"
 
 using namespace std;
+using json = nlohmann::json;
 
-void sendMessage(int clientSocket, const string& message) {
-    string mensaje = "{"
-                      "origen:\"./searcher\","
-                      "destino:\"./memcache\","
-                      "contexto:{topk:4, txtToSerarch:\"" + message + "\"}"
-                      "}";
+void receiveMessage(int clientSocket) {
+    char buffer[1024];
+    memset(buffer, 0, sizeof(buffer));  // Limpiar el buffer antes de recibir
+    int bytesRead = recv(clientSocket, buffer, sizeof(buffer), 0);
 
-    // Convertir la cadena a un array de caracteres C para enviarlo al servidor
-    const char *mensajeCStr = mensaje.c_str();
-    cout << mensajeCStr[0]<<endl;
-    
-    // Enviar el mensaje al servidor
-    if (send(clientSocket, mensajeCStr, strlen(mensajeCStr), 0) == -1) {
-        perror("Error al enviar el mensaje al servidor");
+    if (bytesRead == -1) {
+        perror("Error al recibir datos del servidor");
+        return;
+    } else if (bytesRead == 0) {
+        std::cerr << "El servidor ha cerrado la conexión" << std::endl;
+        return;
+    } else {
+        buffer[bytesRead] = '\0';
+
+        json jsonResponse = json::parse(buffer);
+
+        // Imprimir la información del archivo y repetición
+        cout << "\nRespuesta(tiempo="<<", origen="<< jsonResponse["contexto"]["ori"]<<"):\n" << endl;
+        for (const auto& resultado : jsonResponse["contexto"]["resultados"]) {
+            cout << "    "<<resultado["archivo"] << "\", " << resultado["repeticion"] << endl;
+        }
+        
     }
 }
+
 
 // Función para conectar al servidor
 int connectToServer(const string& serverIP, int serverPort) {
@@ -49,47 +60,49 @@ int connectToServer(const string& serverIP, int serverPort) {
     return clientSocket;
 }
 
-void interfazBuscador(int clientSocket){
-    size_t pid = getpid();
-    string textoBuscar;
-    char salida;
-
-    int systemResult = system("clear"); 
-    if (systemResult == -1) {
-        perror("Error al ejecutar el comando 'clear'");
-    }
-    cout << "BUSCADOR BASADO EN INDICE INVERTIDO "<<"("<<pid<<")\n";
-    cout << "\nLos top K documentos serán: "<<endl;
-    cout << "\nEscriba texto a buscar: ";
-    getline(cin, textoBuscar);
-
-    //envio mensaje
-    sendMessage(clientSocket, textoBuscar);
-        
-    //salida
-    cout << "\n   DESEA SALIR (S/N): ";
-    cin >> salida;
-    cin.ignore(numeric_limits<streamsize>::max(), '\n');
-    if (salida == 'S' || salida == 's') {
-       return;
-    }
-
-    if (salida == 'N' || salida == 'n') {
-        interfazBuscador(clientSocket);
-    }
-    else{
-        cout << "Ingrese una opcion Correcta"<<endl;
-        interfazBuscador(clientSocket);
-    }  
+void sendMessage(int clientSocket, const json& message){
+    string serializedMessage = message.dump();
+    send(clientSocket, serializedMessage.c_str(),serializedMessage.length(), 0);
 }
-
 int main(){
     dotenv::init();
     string serverIP = "127.0.0.1"; // Dirección IP del servidor
     int serverPort = 3001;       // Puerto del servidor
     int clientSocket = connectToServer(serverIP, serverPort);
-    interfazBuscador(clientSocket);
-    
-   
+    //interfazBuscador(clientSocket);
+    while (true){
+        string textoBuscar;
+        char salida;
+        int systemResult = system("clear"); 
+        if (systemResult == -1) {
+            perror("Error al ejecutar el comando 'clear'");
+        }
+        cout << "BUSCADOR BASADO EN INDICE INVERTIDO\n";
+        cout << "\nLos top K documentos serán: "<<endl;
+        cout << "\nEscriba texto a buscar: ";
+        getline(cin, textoBuscar);
+        json message = {
+            {"origen", string(getenv("FROM"))},
+            {"destino", string(getenv("TO"))},
+            {"contexto", {{"txtToSearch", textoBuscar}}}
+        };
+        sendMessage(clientSocket, message);
+
+        //respuestas memcache
+        receiveMessage(clientSocket);
+        //cout << "Respuesta " << respuestaMemcache << endl;
+
+        cout << "\n DESEA SALIR (S/N): ";
+        cin >> salida;
+        cin.ignore(numeric_limits<streamsize>::max(), '\n');
+
+        if (salida == 'S' || salida == 's'){
+            close(clientSocket);
+            break;
+        }
+    }
+    close(clientSocket);
+
+  
     return 0;
 }   
